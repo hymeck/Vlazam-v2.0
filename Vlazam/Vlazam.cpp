@@ -26,13 +26,13 @@ int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 
 	char* correctDirPath = nullptr;
 	if (dirPath[strlen(dirPath) - 1] != '*') {
-		correctDirPath = (char*)malloc(sizeof(char) * strlen(dirPath) + 2);
-		strcpy_s(correctDirPath, sizeof(char) * strlen(dirPath) + 2, dirPath);
-		strcat_s(correctDirPath, sizeof(char) * strlen(dirPath) + 2, "*");
+		correctDirPath = (char*)malloc(sizeof(char) * (strlen(dirPath) + 2));
+		strcpy_s(correctDirPath, sizeof(char) * (strlen(dirPath) + 2), dirPath);
+		strcat_s(correctDirPath, sizeof(char) * (strlen(dirPath) + 2), "*");
 	}
 	else {
-		correctDirPath = (char*)malloc(sizeof(char) * strlen(dirPath) + 1);
-		strcpy_s(correctDirPath, sizeof(char) * strlen(dirPath) + 1, dirPath);
+		correctDirPath = (char*)malloc(sizeof(char) * (strlen(dirPath) + 1));
+		strcpy_s(correctDirPath, sizeof(char) * (strlen(dirPath) + 1), dirPath);
 	}
 	std::vector<char*> vect;
 	if ((hFind = FindFirstFile(correctDirPath, &data)) == INVALID_HANDLE_VALUE) {
@@ -42,9 +42,9 @@ int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 	do {
 		if (data.cFileName[0] != '.') {
 			int buflen = strlen(data.cFileName) + strlen(DB_DIRECTORY_PATH) + 1;
-			char* buf = (char*)malloc(buflen);
-			strcpy_s(buf, buflen, DB_DIRECTORY_PATH);
-			strcat_s(buf, buflen, data.cFileName);
+			char* buf = (char*)malloc(sizeof(char) * buflen);
+			strcpy_s(buf, sizeof(char) * buflen, DB_DIRECTORY_PATH);
+			strcat_s(buf, sizeof(char) * buflen, data.cFileName);
 			vect.push_back(buf);
 		}
 	} while (FindNextFile(hFind, &data) != 0);
@@ -352,7 +352,7 @@ int startRecording() {
 		BASS_StreamFree(chan);
 		chan = 0;
 		free(recBuf);
-		recBuf = NULL;
+		recBuf = nullptr;
 		// close output device before recording incase of half-duplex device
 		BASS_Free();
 	}
@@ -398,7 +398,7 @@ BOOL CALLBACK recordingCallback(HRECORD handle, const void* buffer, DWORD length
 	return TRUE; // continue recording
 }
 
-// returns -1 if error
+// returns 0 if ok
 int stopRecording() {
 	int result = 0;
 	if (!BASS_ChannelStop(rchan)) {
@@ -409,31 +409,35 @@ int stopRecording() {
 	*(DWORD*)(recBuf + 4) = recLen - 8;
 	*(DWORD*)(recBuf + 40) = recLen - 44;
 
+	int err = 0;
+	if (BASS_RecordFree() != 0) {
+		return BASS_ErrorGetCode();
+	}
+
 	return result;
 }
 
-void BASS_CleanUp() {
-	BASS_RecordFree();
-	BASS_Free();
-}
-
-BOOL initDevice() {
+BOOL initRecordDevice() {
 	BASS_RecordFree();
 	return BASS_RecordInit(DEFAULT_DEVICE);
 }
 
 int playFileWAV(const char* fileName) {
 	if (!BASS_Init(DEFAULT_DEVICE, FREQ, BASS_DEVICE_3D, 0, NULL)) {
-		return false;
+		return BASS_ErrorGetCode();
 	}
 	chan = BASS_StreamCreateFile(FALSE, fileName, 0, 0, 0);
 	
 	BASS_ChannelPlay(chan, TRUE);
-	return true;
+	Sleep(1000);
+	return 0;
 }
 
 int saveRecording(const char* fileName) {
-	return saveToFile(fileName, recBuf, recLen);
+	int res = saveToFile(fileName, recBuf, recLen);
+	free(recBuf);
+	recBuf = nullptr;
+	return res;
 }
 
 int recognizeSample(char**& resultSongs, int& countSongs) {

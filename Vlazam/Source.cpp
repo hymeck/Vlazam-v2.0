@@ -1,10 +1,66 @@
 #include <Windows.h>
+#include <windowsx.h>
 
 #include "Vlazam.h"
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow);
+LRESULT CALLBACK BtnStartRecordingClick();
+LRESULT CALLBACK BtnStopRecordingClick();
+LRESULT CALLBACK BtnReplayClick();
+LRESULT CALLBACK BtnRecognizeClick();
 
+static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize;
+
+LRESULT CALLBACK BtnStartRecordingClick() {
+    if (!initRecordDevice()) {
+        return EXIT_FAILURE;
+    }
+    if (startRecording() == -1) {
+        return EXIT_FAILURE;
+    }
+
+    Button_Enable(hBtnStartRecording, FALSE);
+    Button_Enable(hBtnStopRecording, TRUE);
+
+    return EXIT_SUCCESS;
+}
+
+LRESULT CALLBACK BtnStopRecordingClick() {
+    if (stopRecording() == -1) {
+        return EXIT_FAILURE;
+    }
+    if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
+        return EXIT_FAILURE;
+    }
+
+    Button_Enable(hBtnStartRecording, TRUE);
+    Button_Enable(hBtnStopRecording, FALSE);
+    Button_Enable(hBtnRecognize, TRUE);
+    Button_Enable(hBtnReplay, TRUE);
+
+    return EXIT_SUCCESS;
+}
+
+LRESULT CALLBACK BtnReplayClick() {
+    int err = 0;
+    if ((err = playFileWAV(RECORDED_BUF_FILENAME)) != 0) {
+        return err;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+LRESULT CALLBACK BtnRecognizeClick() {
+    int num, res;
+    char** results = nullptr;
+
+    if (recognizeSample(results, num) == -1) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow) {
     MSG msg{};
@@ -27,16 +83,12 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdS
         return EXIT_FAILURE;
 
     if ((hWnd = CreateWindow(wc.lpszClassName, TEXT("Vlazam"),
-                WS_OVERLAPPEDWINDOW, 0, 0, 600, 600, nullptr, nullptr,
+                WS_OVERLAPPEDWINDOW, 0, 0, 600, 400, nullptr, nullptr,
                 wc.hInstance, nullptr)) == INVALID_HANDLE_VALUE)
         return EXIT_FAILURE;
 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
-
-    if (!initDevice()) {
-        return EXIT_FAILURE;
-    }
 
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
@@ -46,41 +98,102 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdS
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-
-    int num, res;
-    char** results = nullptr;
+    int err = 0;
+    HINSTANCE hInst;
 
     switch (uMsg) {
+    case WM_CREATE:
+        hInst = ((LPCREATESTRUCT)lParam)->hInstance; 
+        
+        hBtnStartRecording = CreateWindow("button", "Start recording",
+            WS_CHILD | WS_VISIBLE | WS_BORDER,
+            190, 315, 120, 30, hWnd, 0, hInst, NULL);
+        ShowWindow(hBtnStartRecording, SW_SHOWNORMAL);
+        UpdateWindow(hBtnStartRecording);
 
-    case WM_DESTROY:
-        PostQuitMessage(EXIT_SUCCESS);//!!!
-        break;
+        hBtnStopRecording = CreateWindow("button", "Stop recording",
+            WS_CHILD | WS_VISIBLE | WS_BORDER,
+            310, 315, 120, 30, hWnd, 0, hInst, NULL);
+        ShowWindow(hBtnStopRecording, SW_SHOWNORMAL);
+        UpdateWindow(hBtnStopRecording);
+        Button_Enable(hBtnStopRecording, FALSE);
 
-    case WM_LBUTTONDOWN:	 
-        if (initDevice()) {
-            MessageBox(NULL, TEXT("DEVICE HAVE SUCCESSFULLY INITIALIZED!"), TEXT("PIZDA"), MB_OK);
-            if (startRecording() == -1) {
-                return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-            }
-        } 
+        hBtnReplay = CreateWindow("button", "Replay",
+            WS_CHILD | WS_VISIBLE | WS_BORDER,
+            430, 315, 120, 30, hWnd, 0, hInst, NULL);
+        ShowWindow(hBtnReplay, SW_SHOWNORMAL);
+        UpdateWindow(hBtnReplay);
+        Button_Enable(hBtnReplay, FALSE);
 
-        break;
-    case WM_RBUTTONDOWN:
-        if (stopRecording() == -1) {
-            return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+        err = BassDllInit();
+        if (err != 0) {
+            MessageBox(hWnd, TEXT("Something goes wrong while init"), TEXT("Oops!"), MB_OK);
         }
-        if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
-            return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-        }
-        if (recognizeSample(results, num) == -1) {
-            return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-        }
-        MessageBox(NULL, results[0], TEXT("PIZDA"), MB_OK);
+
         break;
         
+    case WM_COMMAND: 
+        if (lParam == (LPARAM)hBtnStartRecording) {
+            if (BtnStartRecordingClick() == EXIT_FAILURE) {
+                MessageBox(hWnd, TEXT("Something goes wrong while recording"), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnStopRecording) {
+            if (BtnStopRecordingClick() == EXIT_FAILURE) {
+                MessageBox(hWnd, TEXT("Something goes wrong while stopping."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnReplay) {
+            int err = 0;
+            if ((err = BtnReplayClick()) != EXIT_SUCCESS) {
+                MessageBox(hWnd, TEXT("Something goes wrong while replaying."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnRecognize) {
+            if (BtnRecognizeClick() == EXIT_FAILURE) {
+            MessageBox(hWnd, TEXT("Something goes wrong while recognizing."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        break;
+
+    case WM_DESTROY:
+        err = BassDllCleanup();
+        if (err != 0) {
+            MessageBox(hWnd, TEXT("Something goes wrong while cleanup"), TEXT("Oops!"), MB_OK);
+        }
+        PostQuitMessage(EXIT_SUCCESS);
+        break;
 
     default:
         return DefWindowProcA(hWnd, uMsg, wParam, lParam);
     }
     return 0;
 };
+
+
+
+    //case WM_DESTROY:
+    //    PostQuitMessage(EXIT_SUCCESS);//!!!
+    //    break;
+
+    //case WM_LBUTTONDOWN:
+    //    if (initDevice()) {
+    //        MessageBox(NULL, TEXT("DEVICE HAVE SUCCESSFULLY INITIALIZED!"), TEXT("PIZDA"), MB_OK);
+    //        if (startRecording() == -1) {
+    //            return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    //        }
+    //    }
+
+    //    break;
+    //case WM_RBUTTONDOWN:
+    //    if (stopRecording() == -1) {
+    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    //    }
+    //    if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
+    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    //    }
+    //    if (recognizeSample(results, num) == -1) {
+    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    //    }
+    //    MessageBox(NULL, results[0], TEXT("PIZDA"), MB_OK);
+    //    break;
