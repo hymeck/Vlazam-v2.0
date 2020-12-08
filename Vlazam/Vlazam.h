@@ -10,7 +10,7 @@
 #define DEFAULT_DEVICE -1
 #define BUFSTEP 100000  // memory allocation input
 #define CHUNK_SIZE 2205
-#define RECORDED_BUF_FILENAME "buf.wav"
+#define RECORDED_BUF_FILENAME "RecordedSample.wav"
 #define DB_DIRECTORY_PATH "..\\DB\\"
 
 int getIndex(const int freq);
@@ -29,5 +29,6 @@ BOOL initDevice();
 void BASS_CleanUp();
 int startRecording();
 int stopRecording();
+int recognizeSample(char**& resultSongs, int& countSongs);
 
 #endif

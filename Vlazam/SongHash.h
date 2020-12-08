@@ -4,9 +4,10 @@
 class SongHash {
 public:
 	long* buffer;
+	char* songName;
 	size_t size;
 	SongHash();
-	SongHash(long* bufptr, size_t bufsize);
+	SongHash(long* bufptr, char* songname, size_t bufsize);
 
 };
 

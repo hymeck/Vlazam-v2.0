@@ -14,7 +14,7 @@
 const int RANGE_COUNT = 5;
 const int RANGE[RANGE_COUNT] = { 40, 80, 120, 180, 300 };
 // stuff for recording
-char* recBuf = NULL;  // buffer for recording
+char* recBuf = nullptr;  // buffer for recording
 DWORD recLen;         // size of this buffer
 HRECORD rchan = 0;
 HSTREAM chan = 0;
@@ -23,8 +23,19 @@ BOOL CALLBACK recordingCallback(HRECORD handle, const void* buffer, DWORD length
 int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 	WIN32_FIND_DATA data;
 	HANDLE hFind;
+
+	char* correctDirPath = nullptr;
+	if (dirPath[strlen(dirPath) - 1] != '*') {
+		correctDirPath = (char*)malloc(sizeof(char) * strlen(dirPath) + 2);
+		strcpy_s(correctDirPath, sizeof(char) * strlen(dirPath) + 2, dirPath);
+		strcat_s(correctDirPath, sizeof(char) * strlen(dirPath) + 2, "*");
+	}
+	else {
+		correctDirPath = (char*)malloc(sizeof(char) * strlen(dirPath) + 1);
+		strcpy_s(correctDirPath, sizeof(char) * strlen(dirPath) + 1, dirPath);
+	}
 	std::vector<char*> vect;
-	if ((hFind = FindFirstFile(dirPath, &data)) == INVALID_HANDLE_VALUE) {
+	if ((hFind = FindFirstFile(correctDirPath, &data)) == INVALID_HANDLE_VALUE) {
 		return -1;
 	}
 
@@ -51,6 +62,13 @@ int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 		int k = sizeof(long);
 		songsHashes[i].size = fileSize(vect[i]) / k;
 		songsHashes[i].buffer = (long*)malloc(sizeof(long) * songsHashes[i].size);
+		songsHashes[i].songName = (char*)malloc(strlen(vect[i]) + 1);
+		if (!((songsHashes[i].buffer) || (!songsHashes[i].songName))) {
+			return -1;
+		}
+		strcpy_s(songsHashes[i].songName, strlen(vect[i]) + 1, vect[i]);
+
+
 		if (!songsHashes[i].buffer) {
 			return -1;
 		}
@@ -288,7 +306,12 @@ int addToDatabase(const char* fileName) {
 
 	SongHash songHash;
 	songHash.size = sampledChunkCount;
-	songHash.buffer = (long*)malloc(sizeof(long) * songHash.size);
+	songHash.buffer = (long*)malloc(sizeof(long) * songHash.size);	
+	songHash.songName = (char*)malloc(strlen(RECORDED_BUF_FILENAME) + 1);
+	if (!((songHash.buffer) || (!songHash.songName))) {
+		return -1;
+	}
+	strcpy_s(songHash.songName, strlen(RECORDED_BUF_FILENAME) + 1, RECORDED_BUF_FILENAME);
 	// values of recording sample
 	for (int t = 0; t < sampledChunkCount; t++) {
 		for (int freq = 40; freq < 300; freq++) {
@@ -320,6 +343,7 @@ int addToDatabase(const char* fileName) {
 	fclose(fo);
 	return 0;
 }
+
 // returns -1 if error
 int startRecording() {
 	WAVEFORMATEX* wf;
@@ -405,8 +429,163 @@ int playFileWAV(const char* fileName) {
 	chan = BASS_StreamCreateFile(FALSE, fileName, 0, 0, 0);
 	
 	BASS_ChannelPlay(chan, TRUE);
+	return true;
 }
 
 int saveRecording(const char* fileName) {
 	return saveToFile(fileName, recBuf, recLen);
+}
+
+int recognizeSample(char**& resultSongs, int& countSongs) {
+	//////////////////
+	// all from addToDB
+	int sizeWithoutHeaders = fileSize(RECORDED_BUF_FILENAME) - 44;
+	char* audio = (char*)malloc(sizeof(char) * sizeWithoutHeaders);
+	if (!audio) {
+		// out of memory
+		return -1;
+	}
+
+	// read all audio meat
+	FILE* fp;
+	if (fopen_s(&fp, RECORDED_BUF_FILENAME, "rb")) {
+		// Cannot open a file
+		return -1;
+	}
+	fseek(fp, 44, 0);
+	int length = fread(audio, 1, sizeWithoutHeaders, fp);
+	fclose(fp);
+
+	const int chunkSize = CHUNK_SIZE;
+	int sampledChunkCount = length / chunkSize;
+
+	// allocate memory for result complex array
+	kiss_fft_cpx** result = (kiss_fft_cpx**)malloc(sizeof(kiss_fft_cpx*) * sampledChunkCount);
+	for (int j = 0; j < sampledChunkCount; j++) {
+		result[j] = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < chunkSize; i++) {
+			result[j][i].r = 0;
+			result[j][i].i = 0;
+		}
+	}
+
+	for (int j = 0; j < sampledChunkCount; j++) {
+		kiss_fft_cpx* complexArray = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+		if (!complexArray) {
+			return -1;
+		}
+
+		for (int i = 0; i < chunkSize; i++) {
+			kiss_fft_cpx bufCpx;
+			bufCpx.r = audio[j * chunkSize + i];
+			bufCpx.i = 0;
+			complexArray[i] = bufCpx;
+		}
+
+		kfc_fft(chunkSize, complexArray, result[j]);
+	}
+
+	// create digital signature
+	// array for recording high values of amplittude
+	double** highscores = (double**)malloc(sizeof(double*) * sampledChunkCount);
+	if (!highscores) {
+		return -1;
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		highscores[j] = (double*)malloc(sizeof(double) * 5);
+		if (!highscores[j]) {
+			return -1;
+		}
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < RANGE_COUNT; i++) {
+			highscores[j][i] = 0;
+		}
+	}
+	// array for recording frequences of this values
+	int** points = (int**)malloc(sizeof(int*) * sampledChunkCount);
+	if (!points) {
+		return -1;
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		points[j] = (int*)malloc(sizeof(int) * RANGE_COUNT);
+		if (!points[j]) {
+			return -1;
+		}
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < RANGE_COUNT; i++) {
+			points[j][i] = 0;
+		}
+	}
+
+	SongHash songHash;
+	songHash.size = sampledChunkCount;
+	songHash.buffer = (long*)malloc(sizeof(long) * songHash.size);
+	songHash.songName = (char*)malloc(strlen(RECORDED_BUF_FILENAME) + 1);
+	if (!((songHash.buffer) || (!songHash.songName))) {
+		return -1;
+	}
+	strcpy_s(songHash.songName, strlen(RECORDED_BUF_FILENAME) + 1, RECORDED_BUF_FILENAME);
+	// values of recording sample
+	for (int t = 0; t < sampledChunkCount; t++) {
+		for (int freq = 40; freq < 300; freq++) {
+			double mag = log(abs(result[t][freq].r) + 1);
+			int index = getIndex(freq);
+			if (mag > highscores[t][index]) {
+				highscores[t][index] = mag;
+				points[t][index] = freq;
+			}
+		}
+		songHash.buffer[t] = hash(points[t][0], points[t][1], points[t][2], points[t][3]);
+	}
+	//
+	
+	// end addToDB
+	// todo
+	// 1. getSongsFromDBCount
+	// 2. loadSong
+	SongHash* songs = nullptr;
+	int songsCount = 0;
+	int res = loadSongs(songs, DB_DIRECTORY_PATH, songsCount);
+	if (res == -1) {
+		return -1;
+	}
+	int* collisions = (int*)malloc(sizeof(int) * songsCount);
+	if (!collisions) {
+		return -1;
+	}
+	memset(collisions, 0, sizeof(int) * songsCount);
+	for (int i = 0; i < songsCount; i++) {
+		for (int z = 0; z < sampledChunkCount; z++) {
+			for (int w = 0; w < sampledChunkCount; w++) {
+				if (songs[i].buffer[z] == songHash.buffer[w]) {
+					collisions[i]++;
+				}
+			}
+		}
+	}
+
+	int maxIndex = 0;
+	int maxValue = collisions[maxIndex];
+	for (int i = 1; i < songsCount; i++) {
+		if (collisions[i] > collisions[maxIndex]) {
+			maxIndex = i;
+			maxValue = collisions[maxIndex];
+		}
+	}
+	// todo: return more than 1 song, if delta = 50%
+	int suitableCount = 1;
+	char** suitableSongNames = (char**)malloc(suitableCount);
+	if (!suitableSongNames) {
+		return -1;
+	}
+								// sizeof(char*) * ??
+	suitableSongNames[0] = (char*)malloc(sizeof(char) * (strlen(songs[maxIndex].songName) + 1));
+	strcpy_s(suitableSongNames[0], sizeof(char)* (strlen(songs[maxIndex].songName) + 1), songs[maxIndex].songName);
+	resultSongs = suitableSongNames;
+	countSongs = suitableCount;
+	return 0;
 }

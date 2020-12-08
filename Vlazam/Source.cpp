@@ -46,14 +46,9 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdS
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    SongHash *buf = nullptr;
-    char* str = (char*)malloc(50);
-    if (!str) {
-        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    }
-    strcpy_s(str, 50, DB_DIRECTORY_PATH);
-    strcat_s(str, 50, "*");
+
     int num, res;
+    char** results = nullptr;
 
     switch (uMsg) {
 
@@ -63,10 +58,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
     case WM_LBUTTONDOWN:	 
         if (initDevice()) {
+            MessageBox(NULL, TEXT("DEVICE HAVE SUCCESSFULLY INITIALIZED!"), TEXT("PIZDA"), MB_OK);
             if (startRecording() == -1) {
                 return DefWindowProcA(hWnd, uMsg, wParam, lParam);
             }
-        }
+        } 
+
         break;
     case WM_RBUTTONDOWN:
         if (stopRecording() == -1) {
@@ -75,9 +72,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
             return DefWindowProcA(hWnd, uMsg, wParam, lParam);
         }
-        if (playFileWAV(RECORDED_BUF_FILENAME) == -1) {
+        if (recognizeSample(results, num) == -1) {
             return DefWindowProcA(hWnd, uMsg, wParam, lParam);
         }
+        MessageBox(NULL, results[0], TEXT("PIZDA"), MB_OK);
         break;
         
 
