@@ -13,9 +13,6 @@ LRESULT CALLBACK BtnRecognizeClick();
 static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize;
 
 LRESULT CALLBACK BtnStartRecordingClick() {
-    if (!initRecordDevice()) {
-        return EXIT_FAILURE;
-    }
     if (startRecording() == -1) {
         return EXIT_FAILURE;
     }
@@ -169,31 +166,3 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 };
-
-
-
-    //case WM_DESTROY:
-    //    PostQuitMessage(EXIT_SUCCESS);//!!!
-    //    break;
-
-    //case WM_LBUTTONDOWN:
-    //    if (initDevice()) {
-    //        MessageBox(NULL, TEXT("DEVICE HAVE SUCCESSFULLY INITIALIZED!"), TEXT("PIZDA"), MB_OK);
-    //        if (startRecording() == -1) {
-    //            return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    //        }
-    //    }
-
-    //    break;
-    //case WM_RBUTTONDOWN:
-    //    if (stopRecording() == -1) {
-    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    //    }
-    //    if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
-    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    //    }
-    //    if (recognizeSample(results, num) == -1) {
-    //        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    //    }
-    //    MessageBox(NULL, results[0], TEXT("PIZDA"), MB_OK);
-    //    break;

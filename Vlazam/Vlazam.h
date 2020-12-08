@@ -22,11 +22,12 @@ char* intToCharptr(long long a);
 int addToDatabase(const char* fileName);
 int changeFileExtension(char*& fileName, const char* newExtension);
 char* getFileName(const char* fullPath);
-BOOL initRecordDevice();
 int playFileWAV(const char* fileName);
 int saveRecording(const char* fileName);
 int startRecording();
 int stopRecording();
 int recognizeSample(char**& resultSongs, int& countSongs);
+int BassDllInit();
+int BassDllCleanup();
 
 #endif

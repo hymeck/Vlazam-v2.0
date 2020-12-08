@@ -353,8 +353,8 @@ int startRecording() {
 		chan = 0;
 		free(recBuf);
 		recBuf = nullptr;
-		// close output device before recording incase of half-duplex device
-		BASS_Free();
+		// close output device before recording in case of half-duplex device
+		// BASS_Free();
 	}
 	// allocate initial buffer and make space for WAVE header
 	recBuf = (char*)malloc(BUFSTEP);
@@ -410,26 +410,36 @@ int stopRecording() {
 	*(DWORD*)(recBuf + 40) = recLen - 44;
 
 	int err = 0;
-	if (BASS_RecordFree() != 0) {
-		return BASS_ErrorGetCode();
-	}
 
 	return result;
 }
 
-BOOL initRecordDevice() {
-	BASS_RecordFree();
-	return BASS_RecordInit(DEFAULT_DEVICE);
-}
-
 int playFileWAV(const char* fileName) {
-	if (!BASS_Init(DEFAULT_DEVICE, FREQ, BASS_DEVICE_3D, 0, NULL)) {
-		return BASS_ErrorGetCode();
-	}
 	chan = BASS_StreamCreateFile(FALSE, fileName, 0, 0, 0);
 	
 	BASS_ChannelPlay(chan, TRUE);
-	Sleep(1000);
+	return 0;
+}
+
+int BassDllInit() {
+	if (!BASS_Init(DEFAULT_DEVICE, FREQ, BASS_DEVICE_3D, 0, NULL)) {
+		return BASS_ErrorGetCode();
+	}	
+	if (!BASS_RecordInit(DEFAULT_DEVICE)) {
+		return BASS_ErrorGetCode();
+	}
+	return 0;
+}
+
+int BassDllCleanup() {
+	if (BASS_IsStarted()) {
+		if (!BASS_Free()) {
+			return BASS_ErrorGetCode();
+		}
+		if (!BASS_RecordFree()) {
+			return BASS_ErrorGetCode();
+		}
+	}
 	return 0;
 }
 
