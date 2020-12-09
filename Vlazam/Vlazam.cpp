@@ -421,6 +421,12 @@ int playFileWAV(const char* fileName) {
 	return 0;
 }
 
+void waitTillPlaying() {
+	while ((BASS_ChannelIsActive(chan) == BASS_ACTIVE_PLAYING)) {
+		Sleep(100);
+	}
+}
+
 int BassDllInit() {
 	if (!BASS_Init(DEFAULT_DEVICE, FREQ, BASS_DEVICE_3D, 0, NULL)) {
 		return BASS_ErrorGetCode();

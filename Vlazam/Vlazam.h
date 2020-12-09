@@ -27,6 +27,7 @@ int saveRecording(const char* fileName);
 int startRecording();
 int stopRecording();
 int recognizeSample(char**& resultSongs, int& countSongs);
+void waitTillPlaying();
 int BassDllInit();
 int BassDllCleanup();
 

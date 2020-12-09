@@ -10,15 +10,20 @@ LRESULT CALLBACK BtnStopRecordingClick();
 LRESULT CALLBACK BtnReplayClick();
 LRESULT CALLBACK BtnRecognizeClick();
 
-static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize;
+static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize, hStaticStatus, hStaticResults;
 
 LRESULT CALLBACK BtnStartRecordingClick() {
     if (startRecording() == -1) {
         return EXIT_FAILURE;
     }
 
+    Static_SetText(hStaticStatus, "Recording...");
+
     Button_Enable(hBtnStartRecording, FALSE);
     Button_Enable(hBtnStopRecording, TRUE);
+
+    Button_Enable(hBtnRecognize, FALSE);
+    Button_Enable(hBtnReplay, FALSE);
 
     return EXIT_SUCCESS;
 }
@@ -30,6 +35,8 @@ LRESULT CALLBACK BtnStopRecordingClick() {
     if (saveRecording(RECORDED_BUF_FILENAME) == -1) {
         return EXIT_FAILURE;
     }
+
+    Static_SetText(hStaticStatus, "Ready to replay/recognise.");
 
     Button_Enable(hBtnStartRecording, TRUE);
     Button_Enable(hBtnStopRecording, FALSE);
@@ -43,7 +50,18 @@ LRESULT CALLBACK BtnReplayClick() {
     int err = 0;
     if ((err = playFileWAV(RECORDED_BUF_FILENAME)) != 0) {
         return err;
-    }
+    }    
+    Static_SetText(hStaticStatus, "Replaying...");
+    Button_Enable(hBtnStartRecording, FALSE);
+    Button_Enable(hBtnStopRecording, FALSE);
+    Button_Enable(hBtnRecognize, FALSE);
+    Button_Enable(hBtnReplay, FALSE);
+    waitTillPlaying();
+    Button_Enable(hBtnStartRecording, TRUE);
+    Button_Enable(hBtnStopRecording, FALSE);
+    Button_Enable(hBtnRecognize, TRUE);
+    Button_Enable(hBtnReplay, TRUE);
+    Static_SetText(hStaticStatus, "Ready to replay/recognise.");
 
     return EXIT_SUCCESS;
 }
@@ -52,9 +70,15 @@ LRESULT CALLBACK BtnRecognizeClick() {
     int num, res;
     char** results = nullptr;
 
+    Static_SetText(hStaticStatus, "Recognizing...");
+
     if (recognizeSample(results, num) == -1) {
+        Static_SetText(hStaticStatus, "Some errors occur.");
         return EXIT_FAILURE;
     }
+    Static_SetText(hStaticResults, results[0]);
+
+    Static_SetText(hStaticStatus, "Ready to replay/recognise.");
 
     return EXIT_SUCCESS;
 }
@@ -80,7 +104,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdS
         return EXIT_FAILURE;
 
     if ((hWnd = CreateWindow(wc.lpszClassName, TEXT("Vlazam"),
-                WS_OVERLAPPEDWINDOW, 0, 0, 600, 400, nullptr, nullptr,
+                WS_OVERLAPPEDWINDOW, 0, 0, 600, 200, nullptr, nullptr,
                 wc.hInstance, nullptr)) == INVALID_HANDLE_VALUE)
         return EXIT_FAILURE;
 
@@ -104,23 +128,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         
         hBtnStartRecording = CreateWindow("button", "Start recording",
             WS_CHILD | WS_VISIBLE | WS_BORDER,
-            190, 315, 120, 30, hWnd, 0, hInst, NULL);
+            215, 115, 120, 30, hWnd, 0, hInst, NULL);
         ShowWindow(hBtnStartRecording, SW_SHOWNORMAL);
         UpdateWindow(hBtnStartRecording);
 
         hBtnStopRecording = CreateWindow("button", "Stop recording",
             WS_CHILD | WS_VISIBLE | WS_BORDER,
-            310, 315, 120, 30, hWnd, 0, hInst, NULL);
+            335, 115, 120, 30, hWnd, 0, hInst, NULL);
         ShowWindow(hBtnStopRecording, SW_SHOWNORMAL);
         UpdateWindow(hBtnStopRecording);
         Button_Enable(hBtnStopRecording, FALSE);
 
         hBtnReplay = CreateWindow("button", "Replay",
             WS_CHILD | WS_VISIBLE | WS_BORDER,
-            430, 315, 120, 30, hWnd, 0, hInst, NULL);
+            455, 115, 120, 30, hWnd, 0, hInst, NULL);
         ShowWindow(hBtnReplay, SW_SHOWNORMAL);
         UpdateWindow(hBtnReplay);
         Button_Enable(hBtnReplay, FALSE);
+
+        hBtnRecognize = CreateWindow("button", "Recognize",
+            WS_CHILD | WS_VISIBLE | WS_BORDER,
+            10, 10, 120, 30, hWnd, 0, hInst, NULL);
+        ShowWindow(hBtnRecognize, SW_SHOWNORMAL);
+        UpdateWindow(hBtnRecognize);
+        Button_Enable(hBtnRecognize, FALSE);
+
+        hStaticStatus = CreateWindow("static", "Status",
+            WS_CHILD | SS_LEFTNOWORDWRAP,
+            5, 135, 200, 20, hWnd, 0, hInst, NULL);
+        ShowWindow(hStaticStatus, SW_SHOWNORMAL);
+        UpdateWindow(hStaticStatus);
+        Static_SetText(hStaticStatus, "");
+
+        hStaticResults = CreateWindow("static", "",
+            WS_CHILD | SS_EDITCONTROL,
+            5, 50, 550, 20, hWnd, 0, hInst, NULL);
+        ShowWindow(hStaticResults, SW_SHOWNORMAL);
+        UpdateWindow(hStaticResults);
 
         err = BassDllInit();
         if (err != 0) {
