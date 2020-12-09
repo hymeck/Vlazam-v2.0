@@ -220,6 +220,31 @@ char* getFileName(const char* fullPath) {
 	return result;
 }
 
+char* getFileNameWithoutExtension(const char* fullPath) {
+	int len = strlen(fullPath);
+	int i = len - 1;
+	int j = len - 1;
+	while ((i >= 0) && (fullPath[i] != '\\') && (fullPath[i] != '/')) {
+		i--;
+	}
+	while ((j >= 0) && (j >= i) && (fullPath[j] != '.')) {
+		j--;
+	}
+	char* buf = (char*)malloc(strlen(fullPath) * sizeof(char));
+	if (!buf) {
+		return nullptr;
+	}
+	strcpy_s(buf, len + 1, fullPath);
+	buf[j] = '\0';
+
+	char* result = (char*)malloc(j - i + 1);
+	if (!result) {
+		return nullptr;
+	}
+	strcpy_s(result, len - i + 1, buf + i + 1);
+	return result;
+}
+
 int addToDatabase(const char* fileName) {
 
 	int sizeWithoutHeaders = fileSize(fileName) - 44;
@@ -482,7 +507,8 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 	// allocate memory for result complex array
 	kiss_fft_cpx** result = (kiss_fft_cpx**)malloc(sizeof(kiss_fft_cpx*) * sampledChunkCount);
 	for (int j = 0; j < sampledChunkCount; j++) {
-		result[j] = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+		//result[j] = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+		result[j] = new kiss_fft_cpx[chunkSize];
 	}
 	for (int j = 0; j < sampledChunkCount; j++) {
 		for (int i = 0; i < chunkSize; i++) {
@@ -506,7 +532,7 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 
 		kfc_fft(chunkSize, complexArray, result[j]);
 	}
-
+	//free(audio);
 	// create digital signature
 	// array for recording high values of amplittude
 	double** highscores = (double**)malloc(sizeof(double*) * sampledChunkCount);
@@ -562,7 +588,17 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 		songHash.buffer[t] = hash(points[t][0], points[t][1], points[t][2], points[t][3]);
 	}
 	//
+	// time for free
+	for (int j = 0; j < sampledChunkCount; j++) {
+		free(result[j]);
+	}
 	
+	free(result);
+
+	for (int j = 0; j < sampledChunkCount; j++) {
+		free(highscores[j]);
+	}
+	free(highscores);
 	// end addToDB
 	// todo
 	// 1. getSongsFromDBCount
@@ -603,9 +639,144 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 		return -1;
 	}
 								// sizeof(char*) * ??
-	suitableSongNames[0] = (char*)malloc(sizeof(char) * (strlen(songs[maxIndex].songName) + 1));
-	strcpy_s(suitableSongNames[0], sizeof(char)* (strlen(songs[maxIndex].songName) + 1), songs[maxIndex].songName);
+	suitableSongNames[0] = getFileNameWithoutExtension(songs[maxIndex].songName);
 	resultSongs = suitableSongNames;
 	countSongs = suitableCount;
+	
+	free(songs);
+
+	return 0;
+}
+
+int getSampleHash(char* sampleFileName, SongHash &songHash) {
+	int sizeWithoutHeaders = fileSize(sampleFileName) - 44;
+	//char* audio = (char*)malloc(sizeof(char) * sizeWithoutHeaders);
+	char* audio = new char[sizeWithoutHeaders];
+	if (!audio) {
+		// out of memory
+		return -1;
+	}
+
+	// read all audio meat
+	FILE* fp;
+	if (fopen_s(&fp, sampleFileName, "rb")) {
+		// Cannot open a file
+		return -1;
+	}
+	// miss headers
+	fseek(fp, 44, 0);
+	int length = fread(audio, 1, sizeWithoutHeaders, fp);
+	fclose(fp);
+
+	const int chunkSize = CHUNK_SIZE;
+	int sampledChunkCount = length / chunkSize;
+
+	// allocate memory for result(OUTPUT) complex array
+	//kiss_fft_cpx** result = (kiss_fft_cpx**)malloc(sizeof(kiss_fft_cpx*) * sampledChunkCount);
+	kiss_fft_cpx** result = new kiss_fft_cpx * [sampledChunkCount];
+	for (int j = 0; j < sampledChunkCount; j++) {
+		//result[j] = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+		result[j] = new kiss_fft_cpx[chunkSize];
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < chunkSize; i++) {
+			result[j][i].r = 0;
+			result[j][i].i = 0;
+		}
+	}
+
+	// allocate memory for result(INPUT) complex array
+	// kiss_fft_cpx* complexArray = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * chunkSize);
+	kiss_fft_cpx* complexArray = new kiss_fft_cpx[chunkSize];
+	if (!complexArray) {
+		return -1;
+	}
+	// and initialize it
+	for (int i = 0; i < chunkSize; i++) {
+		kiss_fft_cpx bufCpx;
+		bufCpx.r = audio[j * chunkSize + i];
+		bufCpx.i = 0;
+		complexArray[i] = bufCpx;
+	}
+
+	// performing fast fourie transform
+	for (int j = 0; j < sampledChunkCount; j++) {
+		kfc_fft(chunkSize, complexArray, result[j]);
+	}
+	delete[] complexArray;
+	delete[] audio;
+	// ends with Fourie Transform
+
+	// now create sing signature
+	// array for recording high values of amplittude
+	//double** highscores = (double**)malloc(sizeof(double*) * sampledChunkCount);
+	double** highscores = new double* [sampledChunkCount];
+	if (!highscores) {
+		return -1;
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		//highscores[j] = (double*)malloc(sizeof(double) * 5);
+		highscores[j] = new double[RANGE_COUNT];
+		if (!highscores[j]) {
+			return -1;
+		}
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < RANGE_COUNT; i++) {
+			highscores[j][i] = 0;
+		}
+	}
+	// array for recording frequences of this values
+	//int** points = (int**)malloc(sizeof(int*) * sampledChunkCount);
+	int** points = new int* [sampledChunkCount];
+	if (!points) {
+		return -1;
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		//points[j] = (int*)malloc(sizeof(int) * RANGE_COUNT);
+		points[j] = new int[RANGE_COUNT];
+		if (!points[j]) {
+			return -1;
+		}
+	}
+	for (int j = 0; j < sampledChunkCount; j++) {
+		for (int i = 0; i < RANGE_COUNT; i++) {
+			points[j][i] = 0;
+		}
+	}
+	// now create SongHash object and initialize it
+	songHash.size = sampledChunkCount;
+	//songHash.buffer = (long*)malloc(sizeof(long) * songHash.size);
+	songHash.buffer = new long[songHash.size];
+	//songHash.songName = (char*)malloc(strlen(RECORDED_BUF_FILENAME) + 1);
+	songHash.songName = new char[strlen(RECORDED_BUF_FILENAME) + 1];
+	if (!((songHash.buffer) || (!songHash.songName))) {
+		return -1;
+	}
+	strcpy_s(songHash.songName, strlen(RECORDED_BUF_FILENAME) + 1, RECORDED_BUF_FILENAME);
+	// values of recording sample
+	for (int t = 0; t < sampledChunkCount; t++) {
+		for (int freq = 40; freq < 300; freq++) {
+			double mag = log(abs(result[t][freq].r) + 1);
+			int index = getIndex(freq);
+			if (mag > highscores[t][index]) {
+				highscores[t][index] = mag;
+				points[t][index] = freq;
+			}
+		}
+		songHash.buffer[t] = hash(points[t][0], points[t][1], points[t][2], points[t][3]);
+	}
+
+	// free memory
+	for (int j = 0; j < sampledChunkCount; j++) {
+		delete[] result[j];
+	}
+	delete[] result;
+
+	for (int j = 0; j < sampledChunkCount; j++) {
+		delete[] highscores[j];
+	}
+	delete[] highscores;
+
 	return 0;
 }

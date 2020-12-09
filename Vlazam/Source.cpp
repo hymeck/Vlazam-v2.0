@@ -1,7 +1,8 @@
 #include <Windows.h>
 #include <windowsx.h>
-
 #include "Vlazam.h"
+
+#define STATIC_RESULTS_INTRO "There are songs suitable for your request:"
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow);
@@ -76,7 +77,24 @@ LRESULT CALLBACK BtnRecognizeClick() {
         Static_SetText(hStaticStatus, "Some errors occur.");
         return EXIT_FAILURE;
     }
-    Static_SetText(hStaticResults, results[0]);
+
+    int staticSumLen = 0;
+    for (int i = 0; i < num; i++) {
+        staticSumLen += strlen(results[i]) + 2;
+    }
+    staticSumLen += strlen(STATIC_RESULTS_INTRO) + 1;
+    char* staticResultsText = (char*)malloc(sizeof(char) * staticSumLen);
+    if (!staticResultsText) {
+        return EXIT_FAILURE;
+    }
+    memset(staticResultsText, 0, staticSumLen);
+    strcpy_s(staticResultsText, staticSumLen, STATIC_RESULTS_INTRO);
+    for (int i = 0; i < num; i++) {
+        strcat_s(staticResultsText, staticSumLen, "\n\t");
+        strcat_s(staticResultsText, staticSumLen, results[i]);
+    }
+
+    Static_SetText(hStaticResults, staticResultsText);
 
     Static_SetText(hStaticStatus, "Ready to replay/recognise.");
 
@@ -161,8 +179,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         Static_SetText(hStaticStatus, "");
 
         hStaticResults = CreateWindow("static", "",
-            WS_CHILD | SS_EDITCONTROL,
-            5, 50, 550, 20, hWnd, 0, hInst, NULL);
+            WS_CHILD | SS_EDITCONTROL | WS_VSCROLL, 
+            5, 50, 550, 50, hWnd, 0, hInst, NULL);
         ShowWindow(hStaticResults, SW_SHOWNORMAL);
         UpdateWindow(hStaticResults);
 
@@ -170,9 +188,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         if (err != 0) {
             MessageBox(hWnd, TEXT("Something goes wrong while init"), TEXT("Oops!"), MB_OK);
         }
-
         break;
-        
+
+
     case WM_COMMAND: 
         if (lParam == (LPARAM)hBtnStartRecording) {
             if (BtnStartRecordingClick() == EXIT_FAILURE) {

@@ -4,7 +4,7 @@
 #include "SongHash.h"
 
 #define CHUNK_SIZE 2205
-#define FUZZ_FACTOR 2
+#define FUZZ_FACTOR 4
 #define FREQ 44100
 #define CHANS 1
 #define DEFAULT_DEVICE -1
