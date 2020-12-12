@@ -3,6 +3,10 @@
 #include "Vlazam.h"
 
 #define STATIC_RESULTS_INTRO "There are songs suitable for your request:"
+#define IDM_ADDTODATABASE 0
+#define IDM_EXIT 1
+#define IDM_ABOUT 2
+
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow);
@@ -10,8 +14,144 @@ LRESULT CALLBACK BtnStartRecordingClick();
 LRESULT CALLBACK BtnStopRecordingClick();
 LRESULT CALLBACK BtnReplayClick();
 LRESULT CALLBACK BtnRecognizeClick();
+HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEnabled, int x, int y, int width, int height);
+HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* btnCapture, int x, int y, int width, int height);
 
 static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize, hStaticStatus, hStaticResults;
+HMENU hMenu, hFileMenu, hHelpMenu;
+
+int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow) {
+    MSG msg{};
+    HWND hWnd{};
+    WNDCLASSEX wc{ sizeof(WNDCLASSEX) };
+
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hInstance = hInstance;
+    wc.lpfnWndProc = WndProc;
+    wc.lpszClassName = TEXT("MyAppClass");
+    wc.lpszMenuName = nullptr;
+    wc.style = CS_VREDRAW | CS_HREDRAW; //!!!
+
+    if (!RegisterClassEx(&wc))
+        return EXIT_FAILURE;
+
+    if ((hWnd = CreateWindow(wc.lpszClassName, TEXT("Vlazam"),
+                WS_OVERLAPPEDWINDOW, 0, 0, 600, 210, nullptr, nullptr,
+                wc.hInstance, nullptr)) == INVALID_HANDLE_VALUE)
+        return EXIT_FAILURE;
+
+    // Create menubar
+    hFileMenu = CreatePopupMenu();
+    AppendMenu(hFileMenu, MF_ENABLED | MF_STRING, IDM_ADDTODATABASE, TEXT("Add to database"));
+    AppendMenu(hFileMenu, MF_SEPARATOR, NULL, NULL);
+    AppendMenu(hFileMenu, MF_ENABLED | MF_STRING, IDM_EXIT, TEXT("Exit"));
+    hHelpMenu = CreatePopupMenu();
+    AppendMenu(hHelpMenu, MF_DISABLED | MF_STRING, IDM_ABOUT, TEXT("About"));
+    hMenu = CreateMenu();
+    AppendMenu(hMenu, MF_ENABLED | MF_POPUP | MF_STRING, (UINT)hFileMenu, TEXT("File"));
+    AppendMenu(hMenu, MF_ENABLED | MF_POPUP | MF_STRING, (UINT)hHelpMenu, TEXT("Help"));
+    SetMenu(hWnd, hMenu);
+
+    ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
+    DrawMenuBar(hWnd);
+
+    while (GetMessage(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return (msg.wParam);
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    int err = 0;
+    HINSTANCE hInst;
+
+    UINT_PTR intPtr = 0;
+
+    switch (uMsg) {
+    case WM_CREATE:
+        hInst = ((LPCREATESTRUCT)lParam)->hInstance; 
+        
+        hBtnStartRecording = CreateButton(hWnd, hInst, "Start recording", TRUE, 215, 115, 120, 30);
+
+        hBtnStopRecording = CreateButton(hWnd, hInst, "Stop recording", FALSE, 335, 115, 120, 30);
+
+        hBtnReplay = CreateButton(hWnd, hInst, "Replay", FALSE, 455, 115, 120, 30);
+
+        hBtnRecognize = CreateButton(hWnd, hInst, "Recognize", FALSE, 10, 10, 120, 30);
+
+        hStaticStatus = CreateStatic(hWnd, hInst, "", 5, 135, 200, 20);
+
+        hStaticResults = CreateStatic(hWnd, hInst, "", 5, 50, 550, 50);
+        
+        if ((err = BassDllInit()) != 0) {
+            MessageBox(hWnd, TEXT("Something goes wrong while init"), TEXT("Oops!"), MB_OK);
+        }
+        break;
+
+
+    case WM_COMMAND: 
+        if (lParam == (LPARAM)hBtnStartRecording) {
+            if (BtnStartRecordingClick() == EXIT_FAILURE) {
+                MessageBox(hWnd, TEXT("Something goes wrong while recording"), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnStopRecording) {
+            if (BtnStopRecordingClick() == EXIT_FAILURE) {
+                MessageBox(hWnd, TEXT("Something goes wrong while stopping."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnReplay) {
+            if ((err = BtnReplayClick()) != EXIT_SUCCESS) {
+                MessageBox(hWnd, TEXT("Something goes wrong while replaying."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        else if (lParam == (LPARAM)hBtnRecognize) {
+            if (BtnRecognizeClick() == EXIT_FAILURE) {
+            MessageBox(hWnd, TEXT("Something goes wrong while recognizing."), TEXT("Oops!"), MB_OK);
+            }
+        }
+        break;
+
+    case WM_DESTROY:
+        err = BassDllCleanup();
+        if (err != 0) {
+            MessageBox(hWnd, TEXT("Something goes wrong while cleanup"), TEXT("Oops!"), MB_OK);
+        }
+        DestroyMenu(hMenu);
+        PostQuitMessage(EXIT_SUCCESS);
+        break;
+
+    default:
+        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    }
+    return 0;
+};
+
+HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* btnCapture, int x, int y, int width, int height) {
+    HWND sttc = CreateWindow("static", "",
+        WS_CHILD | SS_LEFTNOWORDWRAP,
+        x, y, width, height, hWnd, 0, hInst, NULL);
+    ShowWindow(sttc, SW_SHOWNORMAL);
+    UpdateWindow(sttc);
+    return sttc;
+}
+
+HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEnabled, int x, int y, int width, int height) {
+    HWND btn = CreateWindow("button", btnCapture,
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        x, y, width, height, hWnd, 0, hInst, NULL);
+    ShowWindow(btn, SW_SHOWNORMAL);
+    UpdateWindow(btn);
+    Button_Enable(btn, isEnabled);
+    return btn;
+}
 
 LRESULT CALLBACK BtnStartRecordingClick() {
     if (startRecording() == -1) {
@@ -51,7 +191,7 @@ LRESULT CALLBACK BtnReplayClick() {
     int err = 0;
     if ((err = playFileWAV(RECORDED_BUF_FILENAME)) != 0) {
         return err;
-    }    
+    }
     Static_SetText(hStaticStatus, "Replaying...");
     Button_Enable(hBtnStartRecording, FALSE);
     Button_Enable(hBtnStopRecording, FALSE);
@@ -68,7 +208,7 @@ LRESULT CALLBACK BtnReplayClick() {
 }
 
 LRESULT CALLBACK BtnRecognizeClick() {
-    int num, res;
+    int num;;
     char** results = nullptr;
 
     Static_SetText(hStaticStatus, "Recognizing...");
@@ -100,131 +240,3 @@ LRESULT CALLBACK BtnRecognizeClick() {
 
     return EXIT_SUCCESS;
 }
-
-int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow) {
-    MSG msg{};
-    HWND hWnd{};
-    WNDCLASSEX wc{ sizeof(WNDCLASSEX) };
-
-    wc.cbClsExtra = 0;
-    wc.cbWndExtra = 0;
-    wc.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
-    wc.hInstance = hInstance;
-    wc.lpfnWndProc = WndProc;
-    wc.lpszClassName = TEXT("MyAppClass");
-    wc.lpszMenuName = nullptr;
-    wc.style = CS_VREDRAW | CS_HREDRAW; //!!!
-
-    if (!RegisterClassEx(&wc))
-        return EXIT_FAILURE;
-
-    if ((hWnd = CreateWindow(wc.lpszClassName, TEXT("Vlazam"),
-                WS_OVERLAPPEDWINDOW, 0, 0, 600, 200, nullptr, nullptr,
-                wc.hInstance, nullptr)) == INVALID_HANDLE_VALUE)
-        return EXIT_FAILURE;
-
-    ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
-
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    return (msg.wParam);
-}
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    int err = 0;
-    HINSTANCE hInst;
-
-    switch (uMsg) {
-    case WM_CREATE:
-        hInst = ((LPCREATESTRUCT)lParam)->hInstance; 
-        
-        hBtnStartRecording = CreateWindow("button", "Start recording",
-            WS_CHILD | WS_VISIBLE | WS_BORDER,
-            215, 115, 120, 30, hWnd, 0, hInst, NULL);
-        ShowWindow(hBtnStartRecording, SW_SHOWNORMAL);
-        UpdateWindow(hBtnStartRecording);
-
-        hBtnStopRecording = CreateWindow("button", "Stop recording",
-            WS_CHILD | WS_VISIBLE | WS_BORDER,
-            335, 115, 120, 30, hWnd, 0, hInst, NULL);
-        ShowWindow(hBtnStopRecording, SW_SHOWNORMAL);
-        UpdateWindow(hBtnStopRecording);
-        Button_Enable(hBtnStopRecording, FALSE);
-
-        hBtnReplay = CreateWindow("button", "Replay",
-            WS_CHILD | WS_VISIBLE | WS_BORDER,
-            455, 115, 120, 30, hWnd, 0, hInst, NULL);
-        ShowWindow(hBtnReplay, SW_SHOWNORMAL);
-        UpdateWindow(hBtnReplay);
-        Button_Enable(hBtnReplay, FALSE);
-
-        hBtnRecognize = CreateWindow("button", "Recognize",
-            WS_CHILD | WS_VISIBLE | WS_BORDER,
-            10, 10, 120, 30, hWnd, 0, hInst, NULL);
-        ShowWindow(hBtnRecognize, SW_SHOWNORMAL);
-        UpdateWindow(hBtnRecognize);
-        Button_Enable(hBtnRecognize, FALSE);
-
-        hStaticStatus = CreateWindow("static", "Status",
-            WS_CHILD | SS_LEFTNOWORDWRAP,
-            5, 135, 200, 20, hWnd, 0, hInst, NULL);
-        ShowWindow(hStaticStatus, SW_SHOWNORMAL);
-        UpdateWindow(hStaticStatus);
-        Static_SetText(hStaticStatus, "");
-
-        hStaticResults = CreateWindow("static", "",
-            WS_CHILD | SS_EDITCONTROL | WS_VSCROLL, 
-            5, 50, 550, 50, hWnd, 0, hInst, NULL);
-        ShowWindow(hStaticResults, SW_SHOWNORMAL);
-        UpdateWindow(hStaticResults);
-
-        err = BassDllInit();
-        if (err != 0) {
-            MessageBox(hWnd, TEXT("Something goes wrong while init"), TEXT("Oops!"), MB_OK);
-        }
-        break;
-
-
-    case WM_COMMAND: 
-        if (lParam == (LPARAM)hBtnStartRecording) {
-            if (BtnStartRecordingClick() == EXIT_FAILURE) {
-                MessageBox(hWnd, TEXT("Something goes wrong while recording"), TEXT("Oops!"), MB_OK);
-            }
-        }
-        else if (lParam == (LPARAM)hBtnStopRecording) {
-            if (BtnStopRecordingClick() == EXIT_FAILURE) {
-                MessageBox(hWnd, TEXT("Something goes wrong while stopping."), TEXT("Oops!"), MB_OK);
-            }
-        }
-        else if (lParam == (LPARAM)hBtnReplay) {
-            int err = 0;
-            if ((err = BtnReplayClick()) != EXIT_SUCCESS) {
-                MessageBox(hWnd, TEXT("Something goes wrong while replaying."), TEXT("Oops!"), MB_OK);
-            }
-        }
-        else if (lParam == (LPARAM)hBtnRecognize) {
-            if (BtnRecognizeClick() == EXIT_FAILURE) {
-            MessageBox(hWnd, TEXT("Something goes wrong while recognizing."), TEXT("Oops!"), MB_OK);
-            }
-        }
-        break;
-
-    case WM_DESTROY:
-        err = BassDllCleanup();
-        if (err != 0) {
-            MessageBox(hWnd, TEXT("Something goes wrong while cleanup"), TEXT("Oops!"), MB_OK);
-        }
-        PostQuitMessage(EXIT_SUCCESS);
-        break;
-
-    default:
-        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    }
-    return 0;
-};

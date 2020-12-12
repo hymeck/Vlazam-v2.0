@@ -30,5 +30,6 @@ int recognizeSample(char**& resultSongs, int& countSongs);
 void waitTillPlaying();
 int BassDllInit();
 int BassDllCleanup();
+int getSampleHash(const char* sampleFileName, SongHash& songHash);
 
 #endif

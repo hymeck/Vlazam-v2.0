@@ -11,3 +11,7 @@ SongHash::SongHash(long* bufptr, char* songname, size_t bufsize) {
 	this->songName = songname;
 	this->size = bufsize;
 }
+
+SongHash SongHash::getSongHash(char* sampleFileName) {
+	return SongHash();
+}

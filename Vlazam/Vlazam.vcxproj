@@ -160,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Dependencies\bass\bass.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="SongHash.h" />
     <ClInclude Include="Vlazam.h" />
     <ClInclude Include="kiss_fft130\tools\kfc.h" />

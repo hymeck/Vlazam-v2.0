@@ -8,6 +8,7 @@ public:
 	size_t size;
 	SongHash();
 	SongHash(long* bufptr, char* songname, size_t bufsize);
+	static SongHash getSongHash(char *sampleFileName);
 
 };
 
