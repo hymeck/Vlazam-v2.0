@@ -34,6 +34,7 @@ int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 		correctDirPath = (char*)malloc(sizeof(char) * (strlen(dirPath) + 1));
 		strcpy_s(correctDirPath, sizeof(char) * (strlen(dirPath) + 1), dirPath);
 	}
+
 	std::vector<char*> vect;
 	if ((hFind = FindFirstFile(correctDirPath, &data)) == INVALID_HANDLE_VALUE) {
 		return -1;
