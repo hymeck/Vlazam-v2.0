@@ -16,12 +16,13 @@ LRESULT CALLBACK BtnStartRecordingClick();
 LRESULT CALLBACK BtnStopRecordingClick();
 LRESULT CALLBACK BtnReplayClick();
 LRESULT CALLBACK BtnRecognizeClick();
-LRESULT CALLBACK MenuAddToDatabaseClick();
+LRESULT CALLBACK MenuAddToDatabaseClick(HWND hWnd);
 HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEnabled, int x, int y, int width, int height);
 HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* btnCapture, int x, int y, int width, int height);
 
 static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize, hStaticStatus, hStaticResults;
 HMENU hMenu, hFileMenu, hHelpMenu;
+HINSTANCE hInstGlobal;
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdShow) {
     MSG msg{};
@@ -50,13 +51,15 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR szCmdLine, int nCmdS
         return EXIT_FAILURE;
     }
 
+    hInstGlobal = hInstance;
+
     // Create menubar
     hFileMenu = CreatePopupMenu();
     AppendMenu(hFileMenu, MF_ENABLED | MF_STRING, IDM_ADDTODATABASE, TEXT("Add to database"));
     AppendMenu(hFileMenu, MF_SEPARATOR, NULL, NULL);
     AppendMenu(hFileMenu, MF_ENABLED | MF_STRING, IDM_EXIT, TEXT("Exit"));
     hHelpMenu = CreatePopupMenu();
-    AppendMenu(hHelpMenu, MF_DISABLED | MF_STRING, IDM_ABOUT, TEXT("About"));
+    AppendMenu(hHelpMenu, MF_ENABLED | MF_STRING, IDM_ABOUT, TEXT("About"));
     hMenu = CreateMenu();
     AppendMenu(hMenu, MF_ENABLED | MF_POPUP | MF_STRING, (UINT)hFileMenu, TEXT("File"));
     AppendMenu(hMenu, MF_ENABLED | MF_POPUP | MF_STRING, (UINT)hHelpMenu, TEXT("Help"));
@@ -95,7 +98,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         hStaticResults = CreateStatic(hWnd, hInst, "", 5, 50, 550, 50);
         
         if ((err = BassDllInit()) != 0) {
-            MessageBox(hWnd, TEXT("Something goes wrong while init"), TEXT("Oops!"), MB_OK);
+            MessageBox(hWnd, "Something goes wrong while init", "Oops!", MB_OK);
         }
         break;
 
@@ -103,34 +106,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
         if (lParam == (LPARAM)hBtnStartRecording) {
             if (BtnStartRecordingClick() == EXIT_FAILURE) {
-                MessageBox(hWnd, TEXT("Something goes wrong while recording"), TEXT("Oops!"), MB_OK);
+                MessageBox(hWnd, "Something goes wrong while recording", "Oops!", MB_OK);
             }
         }
         else if (lParam == (LPARAM)hBtnStopRecording) {
             if (BtnStopRecordingClick() == EXIT_FAILURE) {
-                MessageBox(hWnd, TEXT("Something goes wrong while stopping."), TEXT("Oops!"), MB_OK);
+                MessageBox(hWnd, "Something goes wrong while stopping.", "Oops!", MB_OK);
             }
         }
         else if (lParam == (LPARAM)hBtnReplay) {
             if ((err = BtnReplayClick()) != EXIT_SUCCESS) {
-                MessageBox(hWnd, TEXT("Something goes wrong while replaying."), TEXT("Oops!"), MB_OK);
+                MessageBox(hWnd, "Something goes wrong while replaying.", "Oops!", MB_OK);
             }
         }
         else if (lParam == (LPARAM)hBtnRecognize) {
             if (BtnRecognizeClick() == EXIT_FAILURE) {
-                MessageBox(hWnd, TEXT("Something goes wrong while recognizing."), TEXT("Oops!"), MB_OK);
+                MessageBox(hWnd, "Something goes wrong while recognizing.", "Oops!", MB_OK);
             }
         }
         // otherwise it is message from menubar
         else {
             switch (LOWORD(wParam)) {
             case IDM_ABOUT:
-                MessageBox(hWnd, TEXT("Help me"), TEXT("Plz"), MB_OK);
+                MessageBox(hWnd, "Help me", "Plz", MB_OK);
                 break;
 
             case IDM_ADDTODATABASE:
-                if (MenuAddToDatabaseClick() == -1) {
-                    MessageBox(hWnd, TEXT("Something goes wrong while adding to database."), TEXT("Oops!"), MB_OK);
+                if (MenuAddToDatabaseClick(hWnd) == -1) {
+                    MessageBox(hWnd, "Something goes wrong while adding to database.", "Oops!", MB_OK);
                 }
                 break;
 
@@ -144,7 +147,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     case WM_DESTROY:
         err = BassDllCleanup();
         if (err != 0) {
-            MessageBox(hWnd, TEXT("Something goes wrong while cleanup"), TEXT("Oops!"), MB_OK);
+            MessageBox(hWnd, "Something goes wrong while cleanup", "Oops!", MB_OK);
         }
         DestroyMenu(hMenu);
         PostQuitMessage(EXIT_SUCCESS);
@@ -175,71 +178,25 @@ HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEna
     return btn;
 }
 
-LRESULT CALLBACK MenuAddToDatabaseClick() {
-    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
-    if (!SUCCEEDED(hr)) {
+LRESULT CALLBACK MenuAddToDatabaseClick(HWND hWnd) {
+    static OPENFILENAME ofn;
+    static char fullpath[MAX_PATH], filename[MAX_PATH], dir[MAX_PATH];
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hWnd;
+    ofn.hInstance = hInstGlobal;
+    ofn.lpstrFilter = "WAV (*.wav)\0*.wav\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFile = fullpath;
+    ofn.nMaxFile = sizeof(fullpath);
+    ofn.lpstrFileTitle = filename;
+    ofn.nMaxFileTitle = sizeof(filename);
+    ofn.lpstrInitialDir = dir;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER | OFN_NOCHANGEDIR;
+    ofn.lpstrTitle = "Open audio";
+    if (!GetOpenFileName(&ofn)) {
         return EXIT_FAILURE;
     }
-
-    IFileOpenDialog* pFileOpen;
-    hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
-
-    if (!SUCCEEDED(hr)) {
-        return EXIT_FAILURE;
-    }
-
-    COMDLG_FILTERSPEC rgSpec[] =
-    {
-        { L"", L"*.wav" },
-    };
-    hr = pFileOpen->SetFileTypes(1, rgSpec);
-
-    if (!SUCCEEDED(hr)) {
-        return EXIT_FAILURE;
-    }
-
-    // Show the Open dialog box.
-    hr = pFileOpen->Show(NULL);
-
-    if (!SUCCEEDED(hr)) {
-        return EXIT_FAILURE;
-    }
-
-    // Get the file name from the dialog box.
-    IShellItem* pItem;
-    hr = pFileOpen->GetResult(&pItem);
-
-    if (!SUCCEEDED(hr)) {
-        return EXIT_FAILURE;
-    }
-
-    PWSTR pszFilePath;
-    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
-
-    if (!SUCCEEDED(hr)) {
-        return EXIT_FAILURE;
-    }
-    
-    // now convert WCHAR to CHAR
-    size_t wLen = wcslen(pszFilePath);
-    char *fileName = (char*)malloc(sizeof(char) * (wLen + 1));
-    if (!fileName) {
-        return EXIT_FAILURE;
-    }
-    size_t cLen = 0;
-    int err = wcstombs_s(&cLen, fileName, wLen + 1, pszFilePath, wLen + 1);
-    if (err) {
-        return EXIT_FAILURE;
-    }
-    fileName[cLen] = '\0';
-
-
-    // cleanup
-    pItem->Release();
-    pFileOpen->Release();
-    CoUninitialize();
-    return addToDatabase(fileName);
+    return addToDatabase(fullpath);
 }
 
 LRESULT CALLBACK BtnStartRecordingClick() {
