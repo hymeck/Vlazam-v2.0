@@ -3,6 +3,7 @@
 #include <shobjidl.h>
 #include "Vlazam.h"
 #include <string>
+#include <vector>
 
 #define STATIC_RESULTS_INTRO "There are songs suitable for your request:"
 #define IDM_ADDTODATABASE 0
@@ -132,7 +133,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 break;
 
             case IDM_ADDTODATABASE:
-                if (MenuAddToDatabaseClick(hWnd) == -1) {
+                if (MenuAddToDatabaseClick(hWnd)) {
                     MessageBox(hWnd, "Something goes wrong while adding to database.", "Oops!", MB_OK);
                 }
                 break;
@@ -180,22 +181,27 @@ HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEna
 
 LRESULT CALLBACK MenuAddToDatabaseClick(HWND hWnd) {
     static OPENFILENAME ofn;
-    static char fullpath[MAX_PATH], filename[MAX_PATH], dir[MAX_PATH];
-    ofn.lStructSize = sizeof(OPENFILENAME);
+    char fullpath[MAX_PATH], filename[MAX_PATH], dir[MAX_PATH];
+    ZeroMemory(&fullpath, MAX_PATH);
+    ZeroMemory(&filename, MAX_PATH);
+    ZeroMemory(&dir, MAX_PATH);
+
+    ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hWnd;
     ofn.hInstance = hInstGlobal;
     ofn.lpstrFilter = "WAV (*.wav)\0*.wav\0";
-    ofn.nFilterIndex = 1;
+    ofn.nFilterIndex = 0;
     ofn.lpstrFile = fullpath;
     ofn.nMaxFile = sizeof(fullpath);
     ofn.lpstrFileTitle = filename;
     ofn.nMaxFileTitle = sizeof(filename);
     ofn.lpstrInitialDir = dir;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER | OFN_NOCHANGEDIR;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
     ofn.lpstrTitle = "Open audio";
     if (!GetOpenFileName(&ofn)) {
-        return EXIT_FAILURE;
+        return GetLastError();
     }
+    
     return addToDatabase(fullpath);
 }
 
@@ -254,18 +260,23 @@ LRESULT CALLBACK BtnReplayClick() {
 }
 
 LRESULT CALLBACK BtnRecognizeClick() {
-    int num;;
-    char** results = nullptr;
+    std::vector<char*> results;
 
     Static_SetText(hStaticStatus, "Recognizing...");
 
-    if (recognizeSample(results, num) == -1) {
+    if (recognizeSample(results) == -1) {
         Static_SetText(hStaticStatus, "Some errors occur.");
         return EXIT_FAILURE;
     }
 
+    if (!results.size()) {
+        Static_SetText(hStaticResults, "There is no songs suitable for your request. Sorry =(");
+        Static_SetText(hStaticStatus, "Ready to replay/recognise.");
+        return EXIT_SUCCESS;
+    }
+
     int staticSumLen = 0;
-    for (int i = 0; i < num; i++) {
+    for (int i = 0; i < results.size(); i++) {
         staticSumLen += strlen(results[i]) + 2;
     }
     staticSumLen += strlen(STATIC_RESULTS_INTRO) + 1;
@@ -275,13 +286,12 @@ LRESULT CALLBACK BtnRecognizeClick() {
     }
     memset(staticResultsText, 0, staticSumLen);
     strcpy_s(staticResultsText, staticSumLen, STATIC_RESULTS_INTRO);
-    for (int i = 0; i < num; i++) {
+    for (int i = 0; i < results.size(); i++) {
         strcat_s(staticResultsText, staticSumLen, "\n\t");
         strcat_s(staticResultsText, staticSumLen, results[i]);
     }
 
     Static_SetText(hStaticResults, staticResultsText);
-
     Static_SetText(hStaticStatus, "Ready to replay/recognise.");
 
     return EXIT_SUCCESS;

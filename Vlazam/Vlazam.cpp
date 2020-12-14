@@ -2,13 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <Windows.h>
-#include <fstream>
-#include <vector>
-#include <string>
 #include "Vlazam.h"
-#include "../Dependencies/kiss_fft130/tools/kfc.h"
-#include "../Dependencies/bass/bass.h"
 
 // ranges of frequencies
 const int RANGE_COUNT = 5;
@@ -53,6 +47,9 @@ int loadSongs(SongHash* &songsHashes, const char* dirPath, int &numOfSongs) {
 	FindClose(hFind);
 
 	numOfSongs = vect.size();
+	if (!numOfSongs) {
+		return -1;
+	}
 	songsHashes = (SongHash*)malloc(sizeof(SongHash) * numOfSongs);
 	if (!songsHashes) {
 		return -1;
@@ -389,11 +386,11 @@ int saveRecording(const char* fileName) {
 	return res;
 }
 
-int recognizeSample(char**& resultSongs, int& countSongs) {
+int recognizeSampleOld(char**& resultSongs, int& countSongs) {
 
 	// todo
 	// 1. getSongsFromDBCount
-	// 2. loadSong
+	// 2. loadOneSong
 
 	SongHash songHash;
 	getSampleHash(RECORDED_BUF_FILENAME, songHash);
@@ -404,7 +401,7 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 	if (res == -1) {
 		return -1;
 	}
-	int* collisions = (int*)malloc(sizeof(int) * songsCount);
+	int* collisions = new int[songsCount];
 	if (!collisions) {
 		return -1;
 	}
@@ -427,9 +424,24 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 			maxValue = collisions[maxIndex];
 		}
 	}
+	if (maxValue == 0) {
+		resultSongs = nullptr;
+		countSongs = 0;
+		return 0;
+	}
 	// todo: return more than 1 song, if delta = 50%
+	// todo: change return value to vector
+
 	int suitableCount = 1;
-	char** suitableSongNames = (char**)malloc(suitableCount);
+	int *suitableIndexes = new int[songsCount];
+	memset(suitableIndexes, 0, songsCount * sizeof(int));
+	for (int i = 0; i < songsCount; i++) {
+		if ((i != maxIndex) && (maxValue / 2 < collisions[i])) {
+			
+		}
+	}
+
+	char** suitableSongNames = (char**)malloc(suitableCount * (sizeof(char*)));
 	if (!suitableSongNames) {
 		return -1;
 	}
@@ -438,6 +450,61 @@ int recognizeSample(char**& resultSongs, int& countSongs) {
 	resultSongs = suitableSongNames;
 	countSongs = suitableCount;
 	
+	free(songs);
+
+	return 0;
+}
+
+int recognizeSample(std::vector<char*> &resultSongs) {
+
+	// todo
+	// 1. getSongsFromDBCount
+	// 2. loadOneSong
+
+	SongHash songHash;
+	getSampleHash(RECORDED_BUF_FILENAME, songHash);
+
+	SongHash* songs = nullptr;
+	int songsCount = 0;
+	int res = loadSongs(songs, DB_DIRECTORY_PATH, songsCount);
+	if (res == -1) {
+		return -1;
+	}
+	int* collisions = new int[songsCount];
+	if (!collisions) {
+		return -1;
+	}
+	memset(collisions, 0, sizeof(int) * songsCount);
+	for (int i = 0; i < songsCount; i++) {
+		for (int z = 0; z < songHash.size; z++) {
+			for (int w = 0; w < songHash.size; w++) {
+				if (songs[i].buffer[z] == songHash.buffer[w]) {
+					collisions[i]++;
+				}
+			}
+		}
+	}
+
+	int maxIndex = 0;
+	int maxValue = collisions[maxIndex];
+	for (int i = 1; i < songsCount; i++) {
+		if (collisions[i] > collisions[maxIndex]) {
+			maxIndex = i;
+			maxValue = collisions[maxIndex];
+		}
+	}
+	if (maxValue == 0) {
+		resultSongs.resize(0);
+		return 0;
+	}
+	// todo: return more than 1 song, if delta = 50%
+	resultSongs.push_back(getFileNameWithoutExtension(songs[maxIndex].songName));
+	for (int i = 0; i < songsCount; i++) {
+		if ((i != maxIndex) && (maxValue * DELTA_COMPARE < collisions[i])) {
+			resultSongs.push_back(getFileNameWithoutExtension(songs[i].songName));
+		}
+	}
+
 	free(songs);
 
 	return 0;

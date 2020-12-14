@@ -1,10 +1,16 @@
 #ifndef VLAZAM_H
 #define VLAZAM_H
 
+#include <Windows.h>
+#include <fstream>
+#include <vector>
+#include "../Dependencies/kiss_fft130/tools/kfc.h"
+#include "../Dependencies/bass/bass.h"
 #include "SongHash.h"
 
 #define CHUNK_SIZE 2205
-#define FUZZ_FACTOR 4
+// how can i manage this?
+#define FUZZ_FACTOR 3
 #define FREQ 44100
 #define CHANS 1
 #define DEFAULT_DEVICE -1
@@ -12,6 +18,9 @@
 #define CHUNK_SIZE 2205
 #define RECORDED_BUF_FILENAME "RecordedSample.wav"
 #define DB_DIRECTORY_PATH "..\\DB\\"
+// this is max difference between max_count_of_collisions and possible_count_of_collisions
+// so we can return few songs
+#define DELTA_COMPARE 0.5
 
 int getIndex(const int freq);
 size_t fileSize(const char* fileName);
@@ -26,7 +35,7 @@ int playFileWAV(const char* fileName);
 int saveRecording(const char* fileName);
 int startRecording();
 int stopRecording();
-int recognizeSample(char**& resultSongs, int& countSongs);
+int recognizeSample(std::vector<char*> &resultSongs);
 void waitTillPlaying();
 int BassDllInit();
 int BassDllCleanup();
