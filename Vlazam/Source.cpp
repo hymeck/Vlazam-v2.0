@@ -19,7 +19,7 @@ LRESULT CALLBACK BtnReplayClick();
 LRESULT CALLBACK BtnRecognizeClick();
 LRESULT CALLBACK MenuAddToDatabaseClick(HWND hWnd);
 HWND CreateButton(HWND hWnd, HINSTANCE hInst, const char* btnCapture, BOOL isEnabled, int x, int y, int width, int height);
-HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* btnCapture, int x, int y, int width, int height);
+HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* staticCapture, int x, int y, int width, int height);
 
 static HWND hBtnStartRecording, hBtnStopRecording, hBtnReplay, hBtnRecognize, hStaticStatus, hStaticResults;
 HMENU hMenu, hFileMenu, hHelpMenu;
@@ -94,7 +94,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
         hBtnRecognize = CreateButton(hWnd, hInst, "Recognize", FALSE, 10, 10, 120, 30);
 
-        hStaticStatus = CreateStatic(hWnd, hInst, "", 5, 135, 200, 20);
+        hStaticStatus = CreateStatic(hWnd, hInst, "Ready to replay/recognise.", 5, 135, 200, 20);
 
         hStaticResults = CreateStatic(hWnd, hInst, "", 5, 50, 550, 50);
         
@@ -160,8 +160,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return 0;
 };
 
-HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* btnCapture, int x, int y, int width, int height) {
-    HWND sttc = CreateWindow("static", "",
+HWND CreateStatic(HWND hWnd, HINSTANCE hInst, const char* staticCapture, int x, int y, int width, int height) {
+    HWND sttc = CreateWindow("static", staticCapture,
         WS_CHILD | SS_LEFTNOWORDWRAP,
         x, y, width, height, hWnd, 0, hInst, NULL);
     ShowWindow(sttc, SW_SHOWNORMAL);
